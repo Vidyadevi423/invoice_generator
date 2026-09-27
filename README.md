@@ -42,8 +42,16 @@ The PDF feature uses the CDN-hosted **jsPDF** and **html2canvas** libraries load
    - `COMPANY_GST`
    - `CURRENCY`
    - `CURRENCY_CODE`
+   - `INVOICE_RATE_LIMIT` (default: 30 requests per 15 minutes per IP)
+   - `INVOICE_RATE_WINDOW_MINUTES` (default: 15)
+   - `LOGIN_RATE_LIMIT` (default: 5 failed attempts per username per window)
+   - `LOGIN_RATE_WINDOW_MINUTES` (default: 15)
+   - `LOGIN_BLOCK_MINUTES` (default: 15)
+   - `LOGIN_IP_RATE_LIMIT` (default: 20 failed attempts per IP per window)
 
    Company settings are optional in development and fall back to the sample values in `db.php`. For production, set the company variables explicitly rather than relying on the development defaults.
+
+   Public invoice creation and admin login have application-level rate limits. Client IP addresses are stored only as SHA-256 hashes for rate limiting.
 
 3. Open `login.php` after installation.
 
