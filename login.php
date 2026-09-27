@@ -50,8 +50,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $password = $_POST['password'] ?? '';
 
         $stmt = $conn->prepare("SELECT id, username, password FROM admin_users WHERE username = ? LIMIT 1");
-        $stmt->bind_param('s', $username);
-        $stmt->execute();
+        if (!$stmt) {
+            error_log('Admin login query preparation failed: ' . $conn->error);
+            $error = 'Unable to sign in right now. Please try again.';
+        } else {
+            $stmt->bind_param('s', $username);
+            if (!$stmt->execute()) {
+                error_log('Admin login query failed: ' . $stmt->error);
+                $error = 'Unable to sign in right now. Please try again.';
+            }
+        }
         $user = $stmt->get_result()->fetch_assoc();
         $stmt->close();
 
