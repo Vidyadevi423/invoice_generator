@@ -158,8 +158,14 @@ $statusColors = [
     </div>
 
     <?php if (isset($_GET['msg'])): ?>
-    <div class="alert <?= $_GET['msg'] === 'deleted' ? 'alert-error' : 'alert-success' ?>">
-        <?= $_GET['msg'] === 'deleted' ? '🗑 Invoice deleted successfully.' : '✅ Invoice status updated.' ?>
+    <div class="alert <?= $_GET['msg'] === 'error' ? 'alert-error' : 'alert-success' ?>">
+        <?php if ($_GET['msg'] === 'deleted'): ?>
+            🗑 Invoice deleted successfully.
+        <?php elseif ($_GET['msg'] === 'updated'): ?>
+            ✅ Invoice status updated.
+        <?php else: ?>
+            Unable to complete the requested action.
+        <?php endif; ?>
     </div>
     <?php endif; ?>
 
