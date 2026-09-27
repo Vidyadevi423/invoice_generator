@@ -48,6 +48,13 @@ CREATE TABLE IF NOT EXISTS admin_users (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS invoice_rate_limits (
+    ip_hash CHAR(64) PRIMARY KEY,
+    attempts SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    window_started_at DATETIME NOT NULL,
+    blocked_until DATETIME NULL
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS admin_login_attempts (
     username VARCHAR(100) PRIMARY KEY,
     attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
