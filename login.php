@@ -7,7 +7,14 @@ if (!empty($_SESSION['admin_user_id'])) {
 }
 
 $conn = getDB();
-$count = (int) $conn->query("SELECT COUNT(*) AS total FROM admin_users")->fetch_assoc()['total'];
+$countResult = $conn->query("SELECT COUNT(*) AS total FROM admin_users");
+if (!$countResult) {
+    error_log('Admin count query failed: ' . $conn->error);
+    $conn->close();
+    http_response_code(500);
+    exit('Unable to load the login page right now.');
+}
+$count = (int) $countResult->fetch_assoc()['total'];
 $error = '';
 $setupTokenConfigured = getenv('ADMIN_SETUP_TOKEN') !== false && getenv('ADMIN_SETUP_TOKEN') !== '';
 
@@ -33,8 +40,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $hash = password_hash($password, PASSWORD_DEFAULT);
                 $stmt = $conn->prepare("INSERT INTO admin_users (username, password, email) VALUES (?, ?, ?)");
-                $stmt->bind_param('sss', $username, $hash, $email);
-                if ($stmt->execute()) {
+                if (!$stmt) {
+                    error_log('Admin setup query preparation failed: ' . $conn->error);
+                    $error = 'Unable to create the administrator account.';
+                } else {
+                    $stmt->bind_param('sss', $username, $hash, $email);
+                }
+                if ($stmt && $stmt->execute()) {
                     session_regenerate_id(true);
                     $_SESSION['admin_user_id'] = $conn->insert_id;
                     $_SESSION['admin_username'] = $username;
