@@ -49,6 +49,120 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $username = trim($_POST['username'] ?? '');
         $password = $_POST['password'] ?? '';
 
+        $attemptStmt = $conn->prepare(
+            "SELECT attempts, window_started_at, blocked_until
+             FROM admin_login_attempts
+             WHERE username = ?
+             LIMIT 1"
+        );
+
+        $blocked = false;
+        if ($attemptStmt) {
+            $attemptStmt->bind_param('s', $username);
+            if ($attemptStmt->execute()) {
+                $attempt = $attemptStmt->get_result()->fetch_assoc();
+                if ($attempt && $attempt['blocked_until'] !== null && strtotime($attempt['blocked_until']) > time()) {
+                    $blocked = true;
+                }
+            } else {
+                error_log('Login throttle query failed: ' . $attemptStmt->error);
+            }
+            $attemptStmt->close();
+        } else {
+            error_log('Login throttle query preparation failed: ' . $conn->error);
+        }
+
+        if ($blocked) {
+            $error = 'Too many failed sign-in attempts. Please try again later.';
+        } else {
+            $user = null;
+            $stmt = $conn->prepare("SELECT id, username, password FROM admin_users WHERE username = ? LIMIT 1");
+            if (!$stmt) {
+                error_log('Admin login query preparation failed: ' . $conn->error);
+                $error = 'Unable to sign in right now. Please try again.';
+            } else {
+                $stmt->bind_param('s', $username);
+                if (!$stmt->execute()) {
+                    error_log('Admin login query failed: ' . $stmt->error);
+                    $error = 'Unable to sign in right now. Please try again.';
+                } else {
+                    $user = $stmt->get_result()->fetch_assoc();
+                }
+                $stmt->close();
+            }
+
+            if ($error === '') {
+                if ($user && password_verify($password, $user['password'])) {
+                    $clearStmt = $conn->prepare("DELETE FROM admin_login_attempts WHERE username = ?");
+                    if ($clearStmt) {
+                        $clearStmt->bind_param('s', $username);
+                        $clearStmt->execute();
+                        $clearStmt->close();
+                    }
+
+                    session_regenerate_id(true);
+                    $_SESSION['admin_user_id'] = (int) $user['id'];
+                    $_SESSION['admin_username'] = $user['username'];
+                    header('Location: admin.php');
+                    exit;
+                }
+
+                $recordStmt = $conn->prepare(
+                    "SELECT attempts, window_started_at
+                     FROM admin_login_attempts
+                     WHERE username = ?
+                     LIMIT 1"
+                );
+                $attempts = 0;
+                $windowStarted = null;
+
+                if ($recordStmt) {
+                    $recordStmt->bind_param('s', $username);
+                    if ($recordStmt->execute()) {
+                        $record = $recordStmt->get_result()->fetch_assoc();
+                        if ($record && strtotime($record['window_started_at']) >= strtotime('-15 minutes')) {
+                            $attempts = (int) $record['attempts'];
+                            $windowStarted = $record['window_started_at'];
+                        }
+                    }
+                    $recordStmt->close();
+                }
+
+                $attempts++;
+                $blockedUntil = $attempts >= 5 ? date('Y-m-d H:i:s', time() + 900) : null;
+
+                if ($windowStarted === null) {
+                    $upsertStmt = $conn->prepare(
+                        "INSERT INTO admin_login_attempts (username, attempts, window_started_at, blocked_until)
+                         VALUES (?, ?, NOW(), ?)"
+                    );
+                    if ($upsertStmt) {
+                        $upsertStmt->bind_param('sis', $username, $attempts, $blockedUntil);
+                    }
+                } else {
+                    $upsertStmt = $conn->prepare(
+                        "UPDATE admin_login_attempts
+                         SET attempts = ?, blocked_until = ?
+                         WHERE username = ?"
+                    );
+                    if ($upsertStmt) {
+                        $upsertStmt->bind_param('iss', $attempts, $blockedUntil, $username);
+                    }
+                }
+
+                if (isset($upsertStmt) && $upsertStmt) {
+                    if (!$upsertStmt->execute()) {
+                        error_log('Login throttle update failed: ' . $upsertStmt->error);
+                    }
+                    $upsertStmt->close();
+                }
+
+                $error = 'Invalid username or password.';
+            }
+        }
+        $username = trim($_POST['username'] ?? '');
+        $password = $_POST['password'] ?? '';
+
         $user = null;
         $stmt = $conn->prepare("SELECT id, username, password FROM admin_users WHERE username = ? LIMIT 1");
         if (!$stmt) {
