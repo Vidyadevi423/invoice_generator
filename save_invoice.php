@@ -7,93 +7,121 @@
 header('Content-Type: application/json');
 require_once 'db.php';
 
+function apiError($message, $status = 400) {
+    http_response_code($status);
+    echo json_encode(['success' => false, 'message' => $message]);
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo json_encode(['success' => false, 'message' => 'Invalid request method.']);
-    exit;
+    apiError('Invalid request method.', 405);
 }
 
-$rawData = file_get_contents('php://input');
-$data = json_decode($rawData, true);
-
+$data = json_decode(file_get_contents('php://input'), true);
 if (!is_array($data)) {
-    echo json_encode(['success' => false, 'message' => 'Invalid JSON data received.']);
-    exit;
+    apiError('Invalid JSON data received.');
 }
 
-if (empty($data['customerName']) || !is_string($data['customerName'])) {
-    echo json_encode(['success' => false, 'message' => 'Customer name is required.']);
-    exit;
-}
-
-if (empty($data['items']) || !is_array($data['items'])) {
-    echo json_encode(['success' => false, 'message' => 'At least one item is required.']);
-    exit;
-}
-
-if (count($data['items']) > 100) {
-    echo json_encode(['success' => false, 'message' => 'Too many invoice items.']);
-    exit;
-}
-
-$customerName = clean($data['customerName']);
+$customerName = clean($data['customerName'] ?? '');
 $customerEmail = clean($data['customerEmail'] ?? '');
 $customerPhone = clean($data['customerPhone'] ?? '');
 $customerAddress = clean($data['customerAddress'] ?? '');
-$taxPercent = filter_var($data['taxPercent'] ?? 18, FILTER_VALIDATE_FLOAT);
 $notes = clean($data['notes'] ?? '');
-$status = in_array($data['status'] ?? '', ['paid', 'unpaid', 'draft', 'cancelled'], true)
-    ? $data['status'] : 'unpaid';
 
-if ($taxPercent === false || $taxPercent < 0 || $taxPercent > 100) {
-    echo json_encode(['success' => false, 'message' => 'Tax rate must be between 0 and 100.']);
-    exit;
+if ($customerName === '') {
+    apiError('Customer name is required.');
+}
+if (strlen($customerName) > 150) {
+    apiError('Customer name is too long.');
+}
+if ($customerEmail !== '' && !filter_var($customerEmail, FILTER_VALIDATE_EMAIL)) {
+    apiError('Enter a valid email address.');
+}
+if (strlen($customerEmail) > 200) {
+    apiError('Customer email is too long.');
+}
+if ($customerPhone !== '' && !preg_match('/^[0-9+()\s-]{7,20}$/', $customerPhone)) {
+    apiError('Enter a valid phone number.');
+}
+if (strlen($customerPhone) > 20) {
+    apiError('Customer phone is too long.');
+}
+if (strlen($customerAddress) > 5000 || strlen($notes) > 5000) {
+    apiError('Customer address or notes are too long.');
+}
+
+$itemsData = $data['items'] ?? null;
+if (!is_array($itemsData) || count($itemsData) === 0) {
+    apiError('At least one item is required.');
+}
+if (count($itemsData) > 100) {
+    apiError('Too many invoice items.');
+}
+
+$taxPercent = filter_var($data['taxPercent'] ?? 18, FILTER_VALIDATE_FLOAT);
+if ($taxPercent === false || !is_finite((float) $taxPercent) || $taxPercent < 0 || $taxPercent > 100) {
+    apiError('Tax rate must be between 0 and 100.');
+}
+
+$status = $data['status'] ?? 'unpaid';
+if (!in_array($status, ['paid', 'unpaid', 'draft', 'cancelled'], true)) {
+    $status = 'unpaid';
 }
 
 $items = [];
 $subtotal = 0.0;
+$maxMoney = 9999999999.99;
+$maxQuantity = 99999999.99;
 
-foreach ($data['items'] as $index => $item) {
+foreach ($itemsData as $index => $item) {
     if (!is_array($item)) {
-        echo json_encode(['success' => false, 'message' => 'Invalid item data at row ' . ($index + 1) . '.']);
-        exit;
+        apiError('Invalid item data at row ' . ($index + 1) . '.');
     }
 
     $itemName = clean($item['name'] ?? '');
     $quantity = filter_var($item['qty'] ?? null, FILTER_VALIDATE_FLOAT);
     $unitPrice = filter_var($item['price'] ?? null, FILTER_VALIDATE_FLOAT);
 
-    if ($itemName === '') {
-        echo json_encode(['success' => false, 'message' => 'Item name is required at row ' . ($index + 1) . '.']);
-        exit;
+    if ($itemName === '' || strlen($itemName) > 255) {
+        apiError('Item name is required and must be at most 255 characters at row ' . ($index + 1) . '.');
     }
-    if ($quantity === false || $quantity <= 0) {
-        echo json_encode(['success' => false, 'message' => 'Quantity must be greater than 0 at row ' . ($index + 1) . '.']);
-        exit;
+    if ($quantity === false || !is_finite((float) $quantity) || $quantity <= 0 || $quantity > $maxQuantity) {
+        apiError('Quantity is invalid at row ' . ($index + 1) . '.');
     }
-    if ($unitPrice === false || $unitPrice < 0) {
-        echo json_encode(['success' => false, 'message' => 'Unit price cannot be negative at row ' . ($index + 1) . '.']);
-        exit;
+    if ($unitPrice === false || !is_finite((float) $unitPrice) || $unitPrice < 0 || $unitPrice > $maxMoney) {
+        apiError('Unit price is invalid at row ' . ($index + 1) . '.');
     }
 
-    $itemTotal = round($quantity * $unitPrice, 2);
+    $itemTotal = round((float) $quantity * (float) $unitPrice, 2);
+    if (!is_finite($itemTotal) || $itemTotal > $maxMoney) {
+        apiError('Item total is too large at row ' . ($index + 1) . '.');
+    }
+
     $subtotal += $itemTotal;
+    if (!is_finite($subtotal) || $subtotal > $maxMoney) {
+        apiError('Invoice subtotal is too large.');
+    }
 
     $items[] = [
         'name' => $itemName,
-        'quantity' => $quantity,
-        'unitPrice' => $unitPrice,
+        'quantity' => (float) $quantity,
+        'unitPrice' => (float) $unitPrice,
         'total' => $itemTotal,
     ];
 }
 
 $subtotal = round($subtotal, 2);
-$taxAmount = round($subtotal * ($taxPercent / 100), 2);
+$taxAmount = round($subtotal * ((float) $taxPercent / 100), 2);
 $total = round($subtotal + $taxAmount, 2);
 
-$conn = getDB();
-$conn->begin_transaction();
+if ($taxAmount > $maxMoney || $total > $maxMoney) {
+    apiError('Invoice total is too large.');
+}
 
 try {
+    $conn = getDB();
+    $conn->begin_transaction();
+
     $temporaryInvoiceNo = 'TMP-' . bin2hex(random_bytes(12));
     $accessToken = bin2hex(random_bytes(32));
 
@@ -127,14 +155,7 @@ try {
     );
 
     foreach ($items as $item) {
-        $itemStmt->bind_param(
-            'isddd',
-            $invoiceId,
-            $item['name'],
-            $item['quantity'],
-            $item['unitPrice'],
-            $item['total']
-        );
+        $itemStmt->bind_param('isddd', $invoiceId, $item['name'], $item['quantity'], $item['unitPrice'], $item['total']);
         $itemStmt->execute();
     }
 
@@ -149,13 +170,13 @@ try {
         'viewUrl' => 'invoice.php?token=' . urlencode($accessToken)
     ]);
 } catch (Throwable $e) {
-    $conn->rollback();
+    if (isset($conn) && $conn instanceof mysqli) {
+        $conn->rollback();
+        $conn->close();
+    }
     error_log('Invoice save failed: ' . $e->getMessage());
-
-    echo json_encode([
-        'success' => false,
-        'message' => 'Unable to save invoice. Please try again.'
-    ]);
+    echo json_encode(['success' => false, 'message' => 'Unable to save invoice. Please try again.']);
+    exit;
 }
 
 $conn->close();
