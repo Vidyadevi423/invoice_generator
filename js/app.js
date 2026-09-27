@@ -250,7 +250,7 @@ function validateForm() {
                 nameInput.classList.add('input-error');
                 itemErrors = true;
             }
-            if (item.price <= 0) {
+            if (item.price < 0) {
                 priceInput.classList.add('input-error');
                 itemErrors = true;
             }
