@@ -104,6 +104,28 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 
+SET @login_ip_attempts_table_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.tables
+    WHERE table_schema = DATABASE()
+      AND table_name = 'admin_login_ip_attempts'
+);
+
+SET @sql = IF(
+    @login_ip_attempts_table_exists = 0,
+    'CREATE TABLE admin_login_ip_attempts (
+        ip_hash CHAR(64) PRIMARY KEY,
+        attempts SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+        window_started_at DATETIME NOT NULL,
+        blocked_until DATETIME NULL
+    ) ENGINE=InnoDB',
+    'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+
 SET @login_attempts_table_exists = (
     SELECT COUNT(*)
     FROM information_schema.tables
