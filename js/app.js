@@ -330,7 +330,24 @@ function saveInvoice() {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(payload)
     })
-    .then(r => r.json())
+    .then(async response => {
+        let data = null;
+
+        try {
+            data = await response.json();
+        } catch {
+            if (!response.ok) {
+                throw new Error('The server could not save the invoice.');
+            }
+            throw new Error('The server returned an invalid response.');
+        }
+
+        if (!response.ok) {
+            throw new Error(data.message || 'The server could not save the invoice.');
+        }
+
+        return data;
+    })
     .then(data => {
         if (data.success) {
             // Update invoice number in preview
@@ -343,13 +360,16 @@ function saveInvoice() {
                 window.location.href = data.viewUrl;
             }, 1800);
         } else {
-            showToast('❌ Error: ' + data.message, 'error');
+            showToast('❌ Error: ' + (data.message || 'Unable to save invoice.'), 'error');
             btn.textContent = '💾 Save to DB';
             btn.disabled    = false;
         }
     })
     .catch(err => {
-        showToast('❌ Network error. Check your connection.', 'error');
+        const message = err instanceof TypeError
+            ? 'Network error. Check your connection.'
+            : (err.message || 'Unable to save invoice.');
+        showToast('❌ ' + message, 'error');
         btn.textContent = '💾 Save to DB';
         btn.disabled    = false;
     });
