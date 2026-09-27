@@ -1,12 +1,26 @@
 -- ============================================
 -- Migration: Secure invoice view tokens
--- Run once against an existing invoice_db.
+-- Safe to run more than once against invoice_db.
 -- ============================================
 
 USE invoice_db;
 
-ALTER TABLE invoices
-    ADD COLUMN access_token VARCHAR(64) NULL AFTER invoice_no;
+SET @column_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'invoices'
+      AND column_name = 'access_token'
+);
+
+SET @sql = IF(
+    @column_exists = 0,
+    'ALTER TABLE invoices ADD COLUMN access_token VARCHAR(64) NULL AFTER invoice_no',
+    'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 UPDATE invoices
 SET access_token = SHA2(CONCAT(id, '-', UUID()), 256)
@@ -15,8 +29,36 @@ WHERE access_token IS NULL;
 ALTER TABLE invoices
     MODIFY access_token VARCHAR(64) NOT NULL;
 
-CREATE UNIQUE INDEX idx_invoices_access_token
-    ON invoices (access_token);
+SET @token_index_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.statistics
+    WHERE table_schema = DATABASE()
+      AND table_name = 'invoices'
+      AND index_name = 'idx_invoices_access_token'
+);
 
-CREATE INDEX idx_invoices_status_created_at
-    ON invoices (status, created_at);
+SET @sql = IF(
+    @token_index_exists = 0,
+    'CREATE UNIQUE INDEX idx_invoices_access_token ON invoices (access_token)',
+    'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @status_index_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.statistics
+    WHERE table_schema = DATABASE()
+      AND table_name = 'invoices'
+      AND index_name = 'idx_invoices_status_created_at'
+);
+
+SET @sql = IF(
+    @status_index_exists = 0,
+    'CREATE INDEX idx_invoices_status_created_at ON invoices (status, created_at)',
+    'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
