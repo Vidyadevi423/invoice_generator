@@ -23,6 +23,12 @@ define('COMPANY_GST', getenv('COMPANY_GST') ?: 'GSTIN: 000000000000000');
 define('CURRENCY', getenv('CURRENCY') ?: '₹');
 define('CURRENCY_CODE', getenv('CURRENCY_CODE') ?: 'INR');
 
+define('INVOICE_RATE_LIMIT', max(1, (int) (getenv('INVOICE_RATE_LIMIT') ?: 30)));
+define('INVOICE_RATE_WINDOW_MINUTES', max(1, (int) (getenv('INVOICE_RATE_WINDOW_MINUTES') ?: 15)));
+define('LOGIN_RATE_LIMIT', max(1, (int) (getenv('LOGIN_RATE_LIMIT') ?: 5)));
+define('LOGIN_RATE_WINDOW_MINUTES', max(1, (int) (getenv('LOGIN_RATE_WINDOW_MINUTES') ?: 15)));
+define('LOGIN_BLOCK_MINUTES', max(1, (int) (getenv('LOGIN_BLOCK_MINUTES') ?: 15)));
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start([
         'cookie_httponly' => true,
