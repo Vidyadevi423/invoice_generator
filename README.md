@@ -44,7 +44,7 @@ The PDF feature uses the CDN-hosted **jsPDF** and **html2canvas** libraries load
    - `CURRENCY_CODE`
    - `INVOICE_RATE_LIMIT` (default: 30 requests per 15 minutes per IP)
    - `INVOICE_RATE_WINDOW_MINUTES` (default: 15)
-   - `LOGIN_RATE_LIMIT` (default: 5 failed attempts per username per window)
+   - `LOGIN_RATE_LIMIT` (default: 5 failed attempts per username and IP per window)
    - `LOGIN_RATE_WINDOW_MINUTES` (default: 15)
    - `LOGIN_BLOCK_MINUTES` (default: 15)
    - `LOGIN_IP_RATE_LIMIT` (default: 20 failed attempts per IP per window)
