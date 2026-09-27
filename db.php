@@ -15,13 +15,13 @@ if ($appEnv === 'production' && (getenv('DB_HOST') === false || getenv('DB_USER'
     throw new RuntimeException('Production database configuration is incomplete.');
 }
 
-define('COMPANY_NAME', 'TechForge Solutions');
-define('COMPANY_EMAIL', 'techforge@gmail.com');
-define('COMPANY_PHONE', '+91 00000 00000');
-define('COMPANY_ADDRESS', 'Theni, Tamilnadu, India');
-define('COMPANY_GST', 'GSTIN: 000000000000000');
-define('CURRENCY', '₹');
-define('CURRENCY_CODE', 'INR');
+define('COMPANY_NAME', getenv('COMPANY_NAME') ?: 'TechForge Solutions');
+define('COMPANY_EMAIL', getenv('COMPANY_EMAIL') ?: 'techforge@gmail.com');
+define('COMPANY_PHONE', getenv('COMPANY_PHONE') ?: '+91 00000 00000');
+define('COMPANY_ADDRESS', getenv('COMPANY_ADDRESS') ?: 'Theni, Tamilnadu, India');
+define('COMPANY_GST', getenv('COMPANY_GST') ?: 'GSTIN: 000000000000000');
+define('CURRENCY', getenv('CURRENCY') ?: '₹');
+define('CURRENCY_CODE', getenv('CURRENCY_CODE') ?: 'INR');
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start([
