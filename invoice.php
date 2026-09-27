@@ -23,7 +23,19 @@ if ($token !== '' && preg_match('/^[a-f0-9]{64}$/', $token)) {
     exit('<h2 style="font-family:sans-serif;text-align:center;margin-top:100px;">Invoice not found.</h2>');
 }
 
-$stmt->execute();
+if (!$stmt) {
+    error_log('Invoice lookup query preparation failed: ' . $conn->error);
+    $conn->close();
+    http_response_code(500);
+    exit('<h2 style="font-family:sans-serif;text-align:center;margin-top:100px;">Unable to load invoice.</h2>');
+}
+if (!$stmt->execute()) {
+    error_log('Invoice lookup query failed: ' . $stmt->error);
+    $stmt->close();
+    $conn->close();
+    http_response_code(500);
+    exit('<h2 style="font-family:sans-serif;text-align:center;margin-top:100px;">Unable to load invoice.</h2>');
+}
 $invoice = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
@@ -34,8 +46,20 @@ if (!$invoice) {
 }
 
 $stmt2 = $conn->prepare("SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY id");
+if (!$stmt2) {
+    error_log('Invoice items query preparation failed: ' . $conn->error);
+    $conn->close();
+    http_response_code(500);
+    exit('<h2 style="font-family:sans-serif;text-align:center;margin-top:100px;">Unable to load invoice.</h2>');
+}
 $stmt2->bind_param('i', $invoice['id']);
-$stmt2->execute();
+if (!$stmt2->execute()) {
+    error_log('Invoice items query failed: ' . $stmt2->error);
+    $stmt2->close();
+    $conn->close();
+    http_response_code(500);
+    exit('<h2 style="font-family:sans-serif;text-align:center;margin-top:100px;">Unable to load invoice.</h2>');
+}
 $items = $stmt2->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt2->close();
 $conn->close();
