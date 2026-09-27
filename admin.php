@@ -89,31 +89,62 @@ if ($filterSt !== 'all') {
 }
 
 $countStmt = $conn->prepare("SELECT COUNT(*) AS cnt FROM invoices $where");
+if (!$countStmt) {
+    error_log('Invoice count query preparation failed: ' . $conn->error);
+    $conn->close();
+    http_response_code(500);
+    exit('Unable to load invoices right now.');
+}
 if ($params) {
     $countStmt->bind_param($types, ...$params);
 }
-$countStmt->execute();
+if (!$countStmt->execute()) {
+    error_log('Invoice count query failed: ' . $countStmt->error);
+    $countStmt->close();
+    $conn->close();
+    http_response_code(500);
+    exit('Unable to load invoices right now.');
+}
 $totalRows = $countStmt->get_result()->fetch_assoc()['cnt'];
 $totalPages = ceil($totalRows / $perPage);
 $countStmt->close();
 
 $sql = "SELECT * FROM invoices $where ORDER BY created_at DESC LIMIT $perPage OFFSET $offset";
 $stmt = $conn->prepare($sql);
+if (!$stmt) {
+    error_log('Invoice list query preparation failed: ' . $conn->error);
+    $conn->close();
+    http_response_code(500);
+    exit('Unable to load invoices right now.');
+}
 if ($params) {
     $stmt->bind_param($types, ...$params);
 }
-$stmt->execute();
+if (!$stmt->execute()) {
+    error_log('Invoice list query failed: ' . $stmt->error);
+    $stmt->close();
+    $conn->close();
+    http_response_code(500);
+    exit('Unable to load invoices right now.');
+}
 $invoices = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
-$stats = $conn->query("
+$statsResult = $conn->query("
     SELECT
         COUNT(*) AS total,
         SUM(total) AS revenue,
         SUM(CASE WHEN status='paid' THEN total ELSE 0 END) AS paid_amount,
         SUM(CASE WHEN status='unpaid' THEN 1 ELSE 0 END) AS unpaid_count
     FROM invoices
-")->fetch_assoc();
+");
+if (!$statsResult) {
+    error_log('Invoice stats query failed: ' . $conn->error);
+    $conn->close();
+    http_response_code(500);
+    exit('Unable to load invoice statistics right now.');
+}
+$stats = $statsResult->fetch_assoc();
 
 $conn->close();
 
