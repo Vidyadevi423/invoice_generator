@@ -386,7 +386,8 @@ function downloadPDF() {
 
     showToast('⏳ Generating PDF, please wait...', 'info');
 
-    html2canvas(element, { scale: 2, useCORS: true, backgroundColor: '#ffffff' })
+    const renderScale = Math.min(2, Math.max(1, 1800 / Math.max(element.scrollWidth, element.scrollHeight)));
+    html2canvas(element, { scale: renderScale, useCORS: true, backgroundColor: '#ffffff' })
     .then(canvas => {
         const pdf     = new jsPDF('p', 'mm', 'a4');
         const pdfW    = pdf.internal.pageSize.getWidth();
