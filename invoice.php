@@ -193,7 +193,8 @@ function downloadPDF() {
     const { jsPDF } = window.jspdf;
     const element = document.getElementById('invoiceDoc');
 
-    html2canvas(element, { scale: 2, useCORS: true }).then(canvas => {
+    const renderScale = Math.min(2, Math.max(1, 1800 / Math.max(element.scrollWidth, element.scrollHeight)));
+    html2canvas(element, { scale: renderScale, useCORS: true }).then(canvas => {
         const pdf = new jsPDF('p', 'mm', 'a4');
         const pdfW = pdf.internal.pageSize.getWidth();
         const pdfPageH = pdf.internal.pageSize.getHeight();
