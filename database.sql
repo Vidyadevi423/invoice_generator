@@ -62,6 +62,13 @@ CREATE TABLE IF NOT EXISTS admin_login_attempts (
     blocked_until DATETIME NULL
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS admin_login_ip_attempts (
+    ip_hash CHAR(64) PRIMARY KEY,
+    attempts SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    window_started_at DATETIME NOT NULL,
+    blocked_until DATETIME NULL
+) ENGINE=InnoDB;
+
 -- No default administrator is inserted.
 -- On a fresh installation, login.php creates the first admin account.
 
