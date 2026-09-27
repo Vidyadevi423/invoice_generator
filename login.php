@@ -65,14 +65,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->close();
         }
 
-        if ($user && password_verify($password, $user['password'])) {
-            session_regenerate_id(true);
-            $_SESSION['admin_user_id'] = (int) $user['id'];
-            $_SESSION['admin_username'] = $user['username'];
-            header('Location: admin.php');
-            exit;
+        if ($error === '') {
+            if ($user && password_verify($password, $user['password'])) {
+                session_regenerate_id(true);
+                $_SESSION['admin_user_id'] = (int) $user['id'];
+                $_SESSION['admin_username'] = $user['username'];
+                header('Location: admin.php');
+                exit;
+            }
+            $error = 'Invalid username or password.';
         }
-        $error = 'Invalid username or password.';
     }
 }
 
