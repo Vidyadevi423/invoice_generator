@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS invoice_items (
     quantity    DECIMAL(10,2)  NOT NULL DEFAULT 1,
     unit_price  DECIMAL(12,2)  NOT NULL DEFAULT 0.00,
     total_price DECIMAL(12,2)  NOT NULL DEFAULT 0.00,
+    INDEX idx_invoice_items_invoice_id (invoice_id),
     FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
