@@ -35,8 +35,15 @@ The PDF feature uses the CDN-hosted **jsPDF** and **html2canvas** libraries load
    - `DB_USER`
    - `DB_PASS`
    - `DB_NAME`
+   - `COMPANY_NAME`
+   - `COMPANY_EMAIL`
+   - `COMPANY_PHONE`
+   - `COMPANY_ADDRESS`
+   - `COMPANY_GST`
+   - `CURRENCY`
+   - `CURRENCY_CODE`
 
-   For production, all five variables should be explicitly configured.
+   Company settings are optional in development and fall back to the sample values in `db.php`. For production, set the company variables explicitly rather than relying on the development defaults.
 
 3. Open `login.php` after installation.
 
