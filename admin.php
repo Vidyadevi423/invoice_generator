@@ -23,7 +23,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_invoice'])) {
 
     $stmt = $conn->prepare("DELETE FROM invoices WHERE id = ?");
     $stmt->bind_param('i', $delId);
-    $stmt->execute();
+    if (!$stmt->execute()) {
+        error_log('Invoice deletion failed: ' . $stmt->error);
+        $stmt->close();
+        header('Location: admin.php?msg=error');
+        exit;
+    }
     $stmt->close();
     header('Location: admin.php?msg=deleted');
     exit;
@@ -45,7 +50,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
 
     $stmt = $conn->prepare("UPDATE invoices SET status = ? WHERE id = ?");
     $stmt->bind_param('si', $updStatus, $updId);
-    $stmt->execute();
+    if (!$stmt->execute()) {
+        error_log('Invoice status update failed: ' . $stmt->error);
+        $stmt->close();
+        header('Location: admin.php?msg=error');
+        exit;
+    }
     $stmt->close();
     header('Location: admin.php?msg=updated');
     exit;
