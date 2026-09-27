@@ -54,7 +54,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     exit;
                 }
                 $error = 'Unable to create the administrator account.';
-                $stmt->close();
+                if ($stmt) {
+                    $stmt->close();
+                }
             }
         }
     } elseif ($count > 0 && ($_POST['action'] ?? '') === 'login') {
