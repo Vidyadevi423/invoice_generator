@@ -65,7 +65,7 @@ if ($taxPercent === false || !is_finite((float) $taxPercent) || $taxPercent < 0 
 
 $status = $data['status'] ?? 'unpaid';
 if (!in_array($status, ['paid', 'unpaid', 'draft', 'cancelled'], true)) {
-    $status = 'unpaid';
+    apiError('Invalid invoice status.');
 }
 
 $items = [];
