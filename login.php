@@ -49,6 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $username = trim($_POST['username'] ?? '');
         $password = $_POST['password'] ?? '';
 
+        $user = null;
         $stmt = $conn->prepare("SELECT id, username, password FROM admin_users WHERE username = ? LIMIT 1");
         if (!$stmt) {
             error_log('Admin login query preparation failed: ' . $conn->error);
@@ -58,10 +59,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$stmt->execute()) {
                 error_log('Admin login query failed: ' . $stmt->error);
                 $error = 'Unable to sign in right now. Please try again.';
+            } else {
+                $user = $stmt->get_result()->fetch_assoc();
             }
+            $stmt->close();
         }
-        $user = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
 
         if ($user && password_verify($password, $user['password'])) {
             session_regenerate_id(true);
