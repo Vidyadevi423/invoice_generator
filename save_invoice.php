@@ -22,6 +22,65 @@ if (!is_array($data)) {
     apiError('Invalid JSON data received.');
 }
 
+$rateConn = getDB();
+$ipAddress = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+$ipHash = hash('sha256', $ipAddress);
+$rateStmt = $rateConn->prepare(
+    "INSERT INTO invoice_rate_limits (ip_hash, attempts, window_started_at, blocked_until)
+     VALUES (?, 1, NOW(), NULL)
+     ON DUPLICATE KEY UPDATE
+       attempts = IF(
+           window_started_at < DATE_SUB(NOW(), INTERVAL ? MINUTE),
+           1,
+           attempts + 1
+       ),
+       window_started_at = IF(
+           window_started_at < DATE_SUB(NOW(), INTERVAL ? MINUTE),
+           NOW(),
+           window_started_at
+       )"
+);
+if (!$rateStmt) {
+    error_log('Invoice rate limit query preparation failed: ' . $rateConn->error);
+    $rateConn->close();
+    apiError('Unable to save invoice right now.', 500);
+}
+$windowMinutes = INVOICE_RATE_WINDOW_MINUTES;
+$rateStmt->bind_param('sii', $ipHash, $windowMinutes, $windowMinutes);
+if (!$rateStmt->execute()) {
+    error_log('Invoice rate limit update failed: ' . $rateStmt->error);
+    $rateStmt->close();
+    $rateConn->close();
+    apiError('Unable to save invoice right now.', 500);
+}
+$rateStmt->close();
+
+$rateStmt = $rateConn->prepare(
+    "SELECT attempts
+     FROM invoice_rate_limits
+     WHERE ip_hash = ?
+     LIMIT 1"
+);
+if (!$rateStmt) {
+    error_log('Invoice rate limit lookup preparation failed: ' . $rateConn->error);
+    $rateConn->close();
+    apiError('Unable to save invoice right now.', 500);
+}
+$rateStmt->bind_param('s', $ipHash);
+if (!$rateStmt->execute()) {
+    error_log('Invoice rate limit lookup failed: ' . $rateStmt->error);
+    $rateStmt->close();
+    $rateConn->close();
+    apiError('Unable to save invoice right now.', 500);
+}
+$rateAttempts = (int) ($rateStmt->get_result()->fetch_assoc()['attempts'] ?? 0);
+$rateStmt->close();
+$rateConn->close();
+
+if ($rateAttempts > INVOICE_RATE_LIMIT) {
+    apiError('Too many invoice requests. Please try again later.', 429);
+}
+
 $customerName = clean($data['customerName'] ?? '');
 $customerEmail = clean($data['customerEmail'] ?? '');
 $customerPhone = clean($data['customerPhone'] ?? '');
