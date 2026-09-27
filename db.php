@@ -4,18 +4,24 @@
 // TechForge Solutions — Invoice Generator
 // ============================================
 
+$appEnv = getenv('APP_ENV') ?: 'development';
+
 define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
 define('DB_USER', getenv('DB_USER') ?: 'root');
 define('DB_PASS', getenv('DB_PASS') ?: '');
 define('DB_NAME', getenv('DB_NAME') ?: 'invoice_db');
 
-define('COMPANY_NAME',    'TechForge Solutions');
-define('COMPANY_EMAIL',   'techforge@gmail.com');
-define('COMPANY_PHONE',   '+91 00000 00000');
+if ($appEnv === 'production' && (getenv('DB_HOST') === false || getenv('DB_USER') === false || getenv('DB_PASS') === false || getenv('DB_NAME') === false)) {
+    throw new RuntimeException('Production database configuration is incomplete.');
+}
+
+define('COMPANY_NAME', 'TechForge Solutions');
+define('COMPANY_EMAIL', 'techforge@gmail.com');
+define('COMPANY_PHONE', '+91 00000 00000');
 define('COMPANY_ADDRESS', 'Theni, Tamilnadu, India');
-define('COMPANY_GST',     'GSTIN: 000000000000000');
-define('CURRENCY',        '₹');
-define('CURRENCY_CODE',   'INR');
+define('COMPANY_GST', 'GSTIN: 000000000000000');
+define('CURRENCY', '₹');
+define('CURRENCY_CODE', 'INR');
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start([
@@ -37,17 +43,8 @@ function getDB() {
     return $conn;
 }
 
-function generateInvoiceNumber($conn) {
-    $result = $conn->query("SELECT COUNT(*) AS total FROM invoices");
-    $row = $result->fetch_assoc();
-    return 'INV-' . str_pad($row['total'] + 1, 5, '0', STR_PAD_LEFT);
-}
-
 function clean($data) {
-    if (!is_string($data)) {
-        return '';
-    }
-    return trim($data);
+    return is_string($data) ? trim($data) : '';
 }
 
 function requireAdmin() {
