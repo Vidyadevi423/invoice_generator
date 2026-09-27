@@ -28,6 +28,7 @@ define('INVOICE_RATE_WINDOW_MINUTES', max(1, (int) (getenv('INVOICE_RATE_WINDOW_
 define('LOGIN_RATE_LIMIT', max(1, (int) (getenv('LOGIN_RATE_LIMIT') ?: 5)));
 define('LOGIN_RATE_WINDOW_MINUTES', max(1, (int) (getenv('LOGIN_RATE_WINDOW_MINUTES') ?: 15)));
 define('LOGIN_BLOCK_MINUTES', max(1, (int) (getenv('LOGIN_BLOCK_MINUTES') ?: 15)));
+define('LOGIN_IP_RATE_LIMIT', max(1, (int) (getenv('LOGIN_IP_RATE_LIMIT') ?: 20)));
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start([
