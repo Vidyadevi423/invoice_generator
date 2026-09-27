@@ -115,14 +115,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
                 $attempts = 0;
                 $windowStarted = null;
+                $recordExists = false;
 
                 if ($recordStmt) {
                     $recordStmt->bind_param('s', $username);
                     if ($recordStmt->execute()) {
                         $record = $recordStmt->get_result()->fetch_assoc();
-                        if ($record && strtotime($record['window_started_at']) >= strtotime('-15 minutes')) {
-                            $attempts = (int) $record['attempts'];
-                            $windowStarted = $record['window_started_at'];
+                        if ($record) {
+                            $recordExists = true;
+                            if (strtotime($record['window_started_at']) >= strtotime('-15 minutes')) {
+                                $attempts = (int) $record['attempts'];
+                                $windowStarted = $record['window_started_at'];
+                            }
                         }
                     }
                     $recordStmt->close();
@@ -131,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $attempts++;
                 $blockedUntil = $attempts >= 5 ? date('Y-m-d H:i:s', time() + 900) : null;
 
-                if ($windowStarted === null) {
+                if (!$recordExists) {
                     $upsertStmt = $conn->prepare(
                         "INSERT INTO admin_login_attempts (username, attempts, window_started_at, blocked_until)
                          VALUES (?, ?, NOW(), ?)"
