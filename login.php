@@ -7,36 +7,43 @@ if (!empty($_SESSION['admin_user_id'])) {
 }
 
 $conn = getDB();
-$count = $conn->query("SELECT COUNT(*) AS total FROM admin_users")->fetch_assoc()['total'];
+$count = (int) $conn->query("SELECT COUNT(*) AS total FROM admin_users")->fetch_assoc()['total'];
 $error = '';
+$setupTokenConfigured = getenv('ADMIN_SETUP_TOKEN') !== false && getenv('ADMIN_SETUP_TOKEN') !== '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
         $error = 'Invalid security token. Please try again.';
     } elseif ($count === 0 && ($_POST['action'] ?? '') === 'setup') {
-        $username = trim($_POST['username'] ?? '');
-        $password = $_POST['password'] ?? '';
-        $email = trim($_POST['email'] ?? '');
+        $setupToken = $_POST['setup_token'] ?? '';
 
-        if (!preg_match('/^[A-Za-z0-9_.-]{3,100}$/', $username)) {
-            $error = 'Username must be 3-100 characters and contain only letters, numbers, dot, underscore, or hyphen.';
-        } elseif (strlen($password) < 12) {
-            $error = 'Password must be at least 12 characters.';
-        } elseif ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $error = 'Enter a valid email address.';
+        if (!$setupTokenConfigured || !hash_equals((string) getenv('ADMIN_SETUP_TOKEN'), (string) $setupToken)) {
+            $error = 'Administrator setup is not enabled or the setup token is invalid.';
         } else {
-            $hash = password_hash($password, PASSWORD_DEFAULT);
-            $stmt = $conn->prepare("INSERT INTO admin_users (username, password, email) VALUES (?, ?, ?)");
-            $stmt->bind_param('sss', $username, $hash, $email);
-            if ($stmt->execute()) {
-                session_regenerate_id(true);
-                $_SESSION['admin_user_id'] = $conn->insert_id;
-                $_SESSION['admin_username'] = $username;
-                header('Location: admin.php');
-                exit;
+            $username = trim($_POST['username'] ?? '');
+            $password = $_POST['password'] ?? '';
+            $email = trim($_POST['email'] ?? '');
+
+            if (!preg_match('/^[A-Za-z0-9_.-]{3,100}$/', $username)) {
+                $error = 'Username must be 3-100 characters and contain only letters, numbers, dot, underscore, or hyphen.';
+            } elseif (strlen($password) < 12) {
+                $error = 'Password must be at least 12 characters.';
+            } elseif ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $error = 'Enter a valid email address.';
+            } else {
+                $hash = password_hash($password, PASSWORD_DEFAULT);
+                $stmt = $conn->prepare("INSERT INTO admin_users (username, password, email) VALUES (?, ?, ?)");
+                $stmt->bind_param('sss', $username, $hash, $email);
+                if ($stmt->execute()) {
+                    session_regenerate_id(true);
+                    $_SESSION['admin_user_id'] = $conn->insert_id;
+                    $_SESSION['admin_username'] = $username;
+                    header('Location: admin.php');
+                    exit;
+                }
+                $error = 'Unable to create the administrator account.';
+                $stmt->close();
             }
-            $error = 'Unable to create the administrator account.';
-            $stmt->close();
         }
     } elseif ($count > 0 && ($_POST['action'] ?? '') === 'login') {
         $username = trim($_POST['username'] ?? '');
@@ -89,6 +96,16 @@ $conn->close();
         <form method="POST">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
             <input type="hidden" name="action" value="<?= $count === 0 ? 'setup' : 'login' ?>">
+
+            <?php if ($count === 0): ?>
+            <div class="form-group">
+                <label for="setup_token">Setup token</label>
+                <div class="input-wrap">
+                    <span class="input-icon">🔐</span>
+                    <input id="setup_token" name="setup_token" type="password" required autocomplete="off">
+                </div>
+            </div>
+            <?php endif; ?>
 
             <div class="form-group">
                 <label for="username">Username</label>
