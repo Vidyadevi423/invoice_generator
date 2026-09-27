@@ -89,13 +89,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $attemptStmt = $conn->prepare(
             "SELECT attempts, window_started_at, blocked_until
              FROM admin_login_attempts
-             WHERE username = ?
+             WHERE username = ? AND ip_hash = ?
              LIMIT 1"
         );
 
         $blocked = false;
         if ($attemptStmt) {
-            $attemptStmt->bind_param('s', $username);
+            $attemptStmt->bind_param('ss', $username, $ipHash);
             if ($attemptStmt->execute()) {
                 $attempt = $attemptStmt->get_result()->fetch_assoc();
                 if ($attempt && $attempt['blocked_until'] !== null && strtotime($attempt['blocked_until']) > time()) {
@@ -130,9 +130,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($error === '') {
                 if (password_verify($password, $user['password'] ?? '$2y$12$wmilnbsPv4gbNrEBbMsY8OyRFjjrd5qUo4cplNMoH/vjLpidmVsw6')) {
-                    $clearStmt = $conn->prepare("DELETE FROM admin_login_attempts WHERE username = ?");
+                    $clearStmt = $conn->prepare("DELETE FROM admin_login_attempts WHERE username = ? AND ip_hash = ?");
                     if ($clearStmt) {
-                        $clearStmt->bind_param('s', $username);
+                        $clearStmt->bind_param('ss', $username, $ipHash);
                         $clearStmt->execute();
                         $clearStmt->close();
                     }
@@ -154,7 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $recordStmt = $conn->prepare(
                     "SELECT attempts, window_started_at
                      FROM admin_login_attempts
-                     WHERE username = ?
+                     WHERE username = ? AND ip_hash = ?
                      LIMIT 1"
                 );
                 $attempts = 0;
@@ -162,7 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $recordExists = false;
 
                 if ($recordStmt) {
-                    $recordStmt->bind_param('s', $username);
+                    $recordStmt->bind_param('ss', $username, $ipHash);
                     if ($recordStmt->execute()) {
                         $record = $recordStmt->get_result()->fetch_assoc();
                         if ($record) {
@@ -181,20 +181,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if (!$recordExists) {
                     $upsertStmt = $conn->prepare(
-                        "INSERT INTO admin_login_attempts (username, attempts, window_started_at, blocked_until)
-                         VALUES (?, ?, NOW(), ?)"
+                        "INSERT INTO admin_login_attempts (username, ip_hash, attempts, window_started_at, blocked_until)
+                         VALUES (?, ?, ?, NOW(), ?)"
                     );
                     if ($upsertStmt) {
-                        $upsertStmt->bind_param('sis', $username, $attempts, $blockedUntil);
+                        $upsertStmt->bind_param('ssis', $username, $ipHash, $attempts, $blockedUntil);
                     }
                 } else {
                     $upsertStmt = $conn->prepare(
                         "UPDATE admin_login_attempts
                          SET attempts = ?, blocked_until = ?
-                         WHERE username = ?"
+                         WHERE username = ? AND ip_hash = ?"
                     );
                     if ($upsertStmt) {
-                        $upsertStmt->bind_param('iss', $attempts, $blockedUntil, $username);
+                        $upsertStmt->bind_param('isss', $attempts, $blockedUntil, $username, $ipHash);
                     }
                 }
 
