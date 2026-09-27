@@ -56,10 +56,12 @@ CREATE TABLE IF NOT EXISTS invoice_rate_limits (
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS admin_login_attempts (
-    username VARCHAR(100) PRIMARY KEY,
+    username VARCHAR(100) NOT NULL,
+    ip_hash CHAR(64) NOT NULL,
     attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
     window_started_at DATETIME NOT NULL,
-    blocked_until DATETIME NULL
+    blocked_until DATETIME NULL,
+    PRIMARY KEY (username, ip_hash)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS admin_login_ip_attempts (
