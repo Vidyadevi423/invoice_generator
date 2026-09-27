@@ -137,7 +137,9 @@ try {
         $temporaryInvoiceNo, $accessToken, $customerName, $customerEmail, $customerPhone,
         $customerAddress, $subtotal, $taxPercent, $taxAmount, $total, $status, $notes
     );
-    $stmt->execute();
+    if (!$stmt->execute()) {
+        throw new RuntimeException('Invoice insert failed: ' . $stmt->error);
+    }
 
     $invoiceId = $conn->insert_id;
     $stmt->close();
@@ -146,7 +148,9 @@ try {
 
     $stmt = $conn->prepare("UPDATE invoices SET invoice_no = ? WHERE id = ?");
     $stmt->bind_param('si', $invoiceNo, $invoiceId);
-    $stmt->execute();
+    if (!$stmt->execute()) {
+        throw new RuntimeException('Invoice number update failed: ' . $stmt->error);
+    }
     $stmt->close();
 
     $itemStmt = $conn->prepare(
@@ -156,7 +160,9 @@ try {
 
     foreach ($items as $item) {
         $itemStmt->bind_param('isddd', $invoiceId, $item['name'], $item['quantity'], $item['unitPrice'], $item['total']);
-        $itemStmt->execute();
+        if (!$itemStmt->execute()) {
+            throw new RuntimeException('Invoice item insert failed: ' . $itemStmt->error);
+        }
     }
 
     $itemStmt->close();
