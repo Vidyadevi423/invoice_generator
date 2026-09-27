@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS invoices (
     status        ENUM('draft','paid','unpaid','cancelled') DEFAULT 'unpaid',
     notes         TEXT,
     created_at    DATETIME       DEFAULT CURRENT_TIMESTAMP,
-    updated_at    DATETIME       DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at    DATETIME       DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_invoices_status_created_at (status, created_at)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS invoice_items (
@@ -55,6 +56,8 @@ CREATE TABLE IF NOT EXISTS admin_users (
 INSERT INTO invoices (invoice_no, access_token, customer_name, customer_email, customer_phone, customer_address, subtotal, tax_percent, tax_amount, total, status, notes)
 VALUES ('INV-00001', SHA2(CONCAT('sample-', UUID()), 256), 'Sample Client', 'client@example.com', '9876543210', '123 Main Street, Chennai, Tamil Nadu', 5000.00, 18.00, 900.00, 5900.00, 'paid', 'First sample invoice');
 
+SET @sample_invoice_id = LAST_INSERT_ID();
+
 INSERT INTO invoice_items (invoice_id, item_name, quantity, unit_price, total_price)
-VALUES (1, 'Web Design Service', 1, 3000.00, 3000.00),
-       (1, 'Logo Design', 1, 2000.00, 2000.00);
+VALUES (@sample_invoice_id, 'Web Design Service', 1, 3000.00, 3000.00),
+       (@sample_invoice_id, 'Logo Design', 1, 2000.00, 2000.00);
