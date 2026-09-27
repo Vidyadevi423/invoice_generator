@@ -368,21 +368,33 @@ function downloadPDF() {
 
     html2canvas(element, { scale: 2, useCORS: true, backgroundColor: '#ffffff' })
     .then(canvas => {
-        const imgData = canvas.toDataURL('image/png');
         const pdf     = new jsPDF('p', 'mm', 'a4');
         const pdfW    = pdf.internal.pageSize.getWidth();
-        const pdfH    = (canvas.height * pdfW) / canvas.width;
+        const pdfPageH = pdf.internal.pageSize.getHeight();
+        const pageCanvasHeight = Math.floor(canvas.width * pdfPageH / pdfW);
+        let sourceY = 0;
 
-        // Handle multi-page
-        const pageHeight = pdf.internal.pageSize.getHeight();
-        let   yPos       = 0;
-        let   remaining  = pdfH;
+        // Slice the rendered canvas into A4-sized images so each PDF page
+        // contains only its own portion of the invoice.
+        while (sourceY < canvas.height) {
+            const sliceHeight = Math.min(pageCanvasHeight, canvas.height - sourceY);
+            const pageCanvas = document.createElement('canvas');
+            pageCanvas.width = canvas.width;
+            pageCanvas.height = sliceHeight;
 
-        while (remaining > 0) {
-            pdf.addImage(imgData, 'PNG', 0, -yPos, pdfW, pdfH);
-            remaining -= pageHeight;
-            yPos      += pageHeight;
-            if (remaining > 0) pdf.addPage();
+            const context = pageCanvas.getContext('2d');
+            context.drawImage(
+                canvas,
+                0, sourceY, canvas.width, sliceHeight,
+                0, 0, canvas.width, sliceHeight
+            );
+
+            const imgData = pageCanvas.toDataURL('image/png');
+            const imgHeight = (sliceHeight * pdfW) / canvas.width;
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfW, imgHeight);
+
+            sourceY += sliceHeight;
+            if (sourceY < canvas.height) pdf.addPage();
         }
 
         const filename = `${invNo}-${custName.replace(/\s+/g, '-')}.pdf`;
