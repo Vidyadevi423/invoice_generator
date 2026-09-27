@@ -6,14 +6,24 @@
 
 $appEnv = getenv('APP_ENV') ?: 'development';
 
-define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
-define('DB_USER', getenv('DB_USER') ?: 'root');
-define('DB_PASS', getenv('DB_PASS') ?: '');
-define('DB_NAME', getenv('DB_NAME') ?: 'invoice_db');
+$dbHost = getenv('DB_HOST');
+$dbUser = getenv('DB_USER');
+$dbPass = getenv('DB_PASS');
+$dbName = getenv('DB_NAME');
 
-if ($appEnv === 'production' && (getenv('DB_HOST') === false || getenv('DB_USER') === false || getenv('DB_PASS') === false || getenv('DB_NAME') === false)) {
+if ($appEnv === 'production' && (
+    $dbHost === false || trim((string) $dbHost) === '' ||
+    $dbUser === false || trim((string) $dbUser) === '' ||
+    $dbPass === false ||
+    $dbName === false || trim((string) $dbName) === ''
+)) {
     throw new RuntimeException('Production database configuration is incomplete.');
 }
+
+define('DB_HOST', $dbHost !== false && $dbHost !== '' ? $dbHost : 'localhost');
+define('DB_USER', $dbUser !== false && $dbUser !== '' ? $dbUser : 'root');
+define('DB_PASS', $dbPass !== false ? $dbPass : '');
+define('DB_NAME', $dbName !== false && $dbName !== '' ? $dbName : 'invoice_db');
 
 define('COMPANY_NAME', getenv('COMPANY_NAME') ?: 'TechForge Solutions');
 define('COMPANY_EMAIL', getenv('COMPANY_EMAIL') ?: 'techforge@gmail.com');
@@ -32,6 +42,8 @@ define('LOGIN_IP_RATE_LIMIT', max(1, (int) (getenv('LOGIN_IP_RATE_LIMIT') ?: 20)
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start([
+        'use_strict_mode' => true,
+        'use_only_cookies' => true,
         'cookie_httponly' => true,
         'cookie_samesite' => 'Lax',
         'cookie_secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
