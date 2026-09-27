@@ -17,3 +17,6 @@ ALTER TABLE invoices
 
 CREATE UNIQUE INDEX idx_invoices_access_token
     ON invoices (access_token);
+
+CREATE INDEX idx_invoices_status_created_at
+    ON invoices (status, created_at);
