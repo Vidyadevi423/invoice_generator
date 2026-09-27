@@ -64,6 +64,24 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 
+SET @invoice_items_index_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.statistics
+    WHERE table_schema = DATABASE()
+      AND table_name = 'invoice_items'
+      AND index_name = 'idx_invoice_items_invoice_id'
+);
+
+SET @sql = IF(
+    @invoice_items_index_exists = 0,
+    'CREATE INDEX idx_invoice_items_invoice_id ON invoice_items (invoice_id)',
+    'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+
 SET @login_attempts_table_exists = (
     SELECT COUNT(*)
     FROM information_schema.tables
