@@ -170,11 +170,33 @@ function downloadPDF() {
     const element = document.getElementById('invoiceDoc');
 
     html2canvas(element, { scale: 2, useCORS: true }).then(canvas => {
-        const imgData = canvas.toDataURL('image/png');
         const pdf = new jsPDF('p', 'mm', 'a4');
         const pdfW = pdf.internal.pageSize.getWidth();
-        const pdfH = (canvas.height * pdfW) / canvas.width;
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfW, pdfH);
+        const pdfPageH = pdf.internal.pageSize.getHeight();
+        const pageCanvasHeight = Math.floor(canvas.width * pdfPageH / pdfW);
+        let sourceY = 0;
+
+        // Slice the rendered canvas into A4-sized images for reliable pagination.
+        while (sourceY < canvas.height) {
+            const sliceHeight = Math.min(pageCanvasHeight, canvas.height - sourceY);
+            const pageCanvas = document.createElement('canvas');
+            pageCanvas.width = canvas.width;
+            pageCanvas.height = sliceHeight;
+
+            const context = pageCanvas.getContext('2d');
+            context.drawImage(
+                canvas,
+                0, sourceY, canvas.width, sliceHeight,
+                0, 0, canvas.width, sliceHeight
+            );
+
+            const imgData = pageCanvas.toDataURL('image/png');
+            const imgHeight = (sliceHeight * pdfW) / canvas.width;
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfW, imgHeight);
+
+            sourceY += sliceHeight;
+            if (sourceY < canvas.height) pdf.addPage();
+        }
         pdf.save('<?= htmlspecialchars($invoice['invoice_no'], ENT_QUOTES, 'UTF-8') ?>.pdf');
     }).catch(() => alert('PDF generation failed. Please try again.'));
 }
