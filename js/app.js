@@ -306,7 +306,7 @@ function saveInvoice() {
     btn.textContent  = '⏳ Saving...';
     btn.disabled     = true;
 
-    const items = getItemsData().filter(i => i.name && i.price > 0);
+    const items = getItemsData().filter(i => i.name && i.price >= 0);
     const sub   = items.reduce((s, i) => s + i.qty * i.price, 0);
     const taxP  = parseFloat(document.getElementById('taxPercent').value) || 0;
     const taxA  = sub * (taxP / 100);
