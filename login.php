@@ -11,6 +11,14 @@ function loginPostString(string $key): ?string {
     return is_string($value) ? $value : null;
 }
 
+function loginBindParams(mysqli_stmt $stmt, string $types, array $values): bool {
+    $references = [];
+    foreach (array_keys($values) as $key) {
+        $references[$key] = &$values[$key];
+    }
+    return $stmt->bind_param($types, ...$references);
+}
+
 function loginIsBlocked(mysqli $conn, string $username, string $ipHash): bool {
     $checks = [
         ['admin_login_attempts', 'username = ? AND ip_hash = ?', 'ss', [$username, $ipHash]],
@@ -24,7 +32,7 @@ function loginIsBlocked(mysqli $conn, string $username, string $ipHash): bool {
                 error_log("Login throttle query preparation failed for {$table}: " . $conn->error);
                 return true;
             }
-            $stmt->bind_param($types, ...$values);
+            loginBindParams($stmt, $types, $values);
             if (!$stmt->execute()) {
                 error_log("Login throttle query failed for {$table}: " . $stmt->error);
                 $stmt->close();
@@ -83,7 +91,7 @@ function loginRecordFailure(mysqli $conn, string $username, string $ipHash): voi
                 error_log("Login throttle read preparation failed for {$record['table']}: " . $conn->error);
                 continue;
             }
-            $stmt->bind_param($record['select_types'], ...$record['select_values']);
+            loginBindParams($stmt, $record['select_types'], $record['select_values']);
             if (!$stmt->execute()) {
                 error_log("Login throttle read failed for {$record['table']}: " . $stmt->error);
                 $stmt->close();
@@ -111,7 +119,7 @@ function loginRecordFailure(mysqli $conn, string $username, string $ipHash): voi
                     continue;
                 }
                 $values = [$attempts, $windowStartSql, $blockedUntil, ...$record['update_values']];
-                $stmt->bind_param($record['update_types'], ...$values);
+                loginBindParams($stmt, $record['update_types'], $values);
             } else {
                 $stmt = $conn->prepare($record['insert_sql']);
                 if (!$stmt) {
@@ -123,7 +131,7 @@ function loginRecordFailure(mysqli $conn, string $username, string $ipHash): voi
                 if ($record['table'] === 'admin_login_ip_attempts') {
                     $values = [$ipHash, $attempts, $windowStartSql, $blockedUntil];
                 }
-                $stmt->bind_param($record['insert_types'], ...$values);
+                loginBindParams($stmt, $record['insert_types'], $values);
             }
 
             if (!$stmt->execute()) {
