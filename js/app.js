@@ -90,19 +90,20 @@ function updateCalculations() {
     const rows     = document.querySelectorAll('.item-row');
     let subtotal   = 0;
 
-    // Calculate each row total
+    // Round each line to cents so the preview matches the server-side invoice.
     rows.forEach(row => {
-        const qty   = parseFloat(row.querySelector('.item-qty')?.value)   || 0;
+        const qty   = parseFloat(row.querySelector('.item-qty')?.value) || 0;
         const price = parseFloat(row.querySelector('.item-price')?.value) || 0;
-        const total = qty * price;
-        const span  = row.querySelector('.item-total');
-        if (span) span.textContent = formatCurrency(total);
-        subtotal += total;
+        const lineTotal = Math.round((qty * price + Number.EPSILON) * 100) / 100;
+        const span = row.querySelector('.item-total');
+        if (span) span.textContent = formatCurrency(lineTotal);
+        subtotal += lineTotal;
     });
 
-    const taxPct   = parseFloat(document.getElementById('taxPercent')?.value) || 0;
-    const taxAmt   = subtotal * (taxPct / 100);
-    const total    = subtotal + taxAmt;
+    subtotal = Math.round((subtotal + Number.EPSILON) * 100) / 100;
+    const taxPct = parseFloat(document.getElementById('taxPercent')?.value) || 0;
+    const taxAmt = Math.round((subtotal * (taxPct / 100) + Number.EPSILON) * 100) / 100;
+    const total = Math.round((subtotal + taxAmt + Number.EPSILON) * 100) / 100;
 
     // Update preview
     updatePreview(subtotal, taxPct, taxAmt, total);
@@ -232,40 +233,52 @@ function validateForm() {
         valid = false;
     }
 
-    // Items — at least one with name and price
-    const items    = getItemsData();
-    let hasItem    = false;
+    // Ignore completely empty rows, but validate every row the user started.
+    const rows = Array.from(document.querySelectorAll('.item-row'));
+    let hasItem = false;
     let itemErrors = false;
 
-    items.forEach((item, idx) => {
-        const row = document.querySelectorAll('.item-row')[idx];
-        if (!row) return;
-        const nameInput  = row.querySelector('.item-name');
-        const priceInput = row.querySelector('.item-price');
-        const qtyInput   = row.querySelector('.item-qty');
+    if (rows.length > 100) {
+        showToast('An invoice can contain at most 100 items.', 'error');
+        valid = false;
+    }
 
-        if (item.name || item.price > 0) {
-            hasItem = true;
-            if (!item.name) {
-                nameInput.classList.add('input-error');
-                itemErrors = true;
-            }
-            if (item.price < 0) {
-                priceInput.classList.add('input-error');
-                itemErrors = true;
-            }
-            if (item.qty <= 0) {
-                qtyInput.classList.add('input-error');
-                itemErrors = true;
-            }
+    rows.forEach(row => {
+        const nameInput = row.querySelector('.item-name');
+        const priceInput = row.querySelector('.item-price');
+        const qtyInput = row.querySelector('.item-qty');
+        const itemName = nameInput.value.trim();
+        const rawPrice = priceInput.value.trim();
+        const rawQty = qtyInput.value.trim();
+
+        // The default quantity of 1 alone does not make a row an item.
+        const started = itemName !== '' || rawPrice !== '';
+        if (!started) return;
+
+        hasItem = true;
+        const qty = Number(rawQty);
+        const price = Number(rawPrice);
+
+        if (!itemName) {
+            nameInput.classList.add('input-error');
+            itemErrors = true;
+        }
+        if (rawQty === '' || !Number.isFinite(qty) || qty <= 0) {
+            qtyInput.classList.add('input-error');
+            itemErrors = true;
+        }
+        if (rawPrice === '' || !Number.isFinite(price) || price < 0) {
+            priceInput.classList.add('input-error');
+            itemErrors = true;
         }
     });
 
     if (!hasItem) {
-        showToast('Please add at least one item with name and price.', 'error');
+        showToast('Please add at least one item with a name, quantity, and price.', 'error');
         valid = false;
-    } else if (itemErrors) {
-        showToast('Please fill all item fields correctly.', 'error');
+    }
+    if (itemErrors) {
+        showToast('Please complete each item row with valid quantity and price.', 'error');
         valid = false;
     }
 
@@ -379,8 +392,17 @@ function saveInvoice() {
 // DOWNLOAD PDF
 // ====================================================
 function downloadPDF() {
-    const { jsPDF }  = window.jspdf;
-    const element    = document.getElementById('invoiceDoc');
+    if (!window.jspdf || !window.html2canvas) {
+        showToast('PDF libraries are unavailable. Check your connection and try again.', 'error');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const element = document.getElementById('invoiceDoc');
+    if (!element || element.style.display === 'none') {
+        showToast('Generate an invoice preview before downloading a PDF.', 'error');
+        return;
+    }
     const custName   = document.getElementById('customerName')?.value.trim() || 'Invoice';
     const invNo      = document.getElementById('previewInvNo')?.textContent || 'Invoice';
 
