@@ -165,7 +165,7 @@ function updatePreview(subtotal, taxPct, taxAmt, total) {
             <td>${escapeHtml(item.name || '—')}</td>
             <td>${item.qty}</td>
             <td>${formatCurrency(item.price)}</td>
-            <td>${formatCurrency(item.qty * item.price)}</td>
+            <td>${formatCurrency(Math.round((item.qty * item.price + Number.EPSILON) * 100) / 100)}</td>
         `;
         tbody.appendChild(tr);
     });
