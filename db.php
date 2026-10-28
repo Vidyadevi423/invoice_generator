@@ -33,6 +33,15 @@ define('COMPANY_GST', getenv('COMPANY_GST') ?: 'GSTIN: 000000000000000');
 define('CURRENCY', getenv('CURRENCY') ?: '₹');
 define('CURRENCY_CODE', getenv('CURRENCY_CODE') ?: 'INR');
 
+// Administrator first-account setup token.
+// Configure ADMIN_SETUP_TOKEN in the hosting environment; do not commit the secret.
+$adminSetupToken = getenv('ADMIN_SETUP_TOKEN');
+if ($adminSetupToken !== false && trim($adminSetupToken) !== '') {
+    if (!defined('ADMIN_SETUP_TOKEN')) {
+        define('ADMIN_SETUP_TOKEN', $adminSetupToken);
+    }
+}
+
 define('INVOICE_RATE_LIMIT', max(1, (int) (getenv('INVOICE_RATE_LIMIT') ?: 30)));
 define('INVOICE_RATE_WINDOW_MINUTES', max(1, (int) (getenv('INVOICE_RATE_WINDOW_MINUTES') ?: 15)));
 define('LOGIN_RATE_LIMIT', max(1, (int) (getenv('LOGIN_RATE_LIMIT') ?: 5)));
