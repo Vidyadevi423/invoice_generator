@@ -152,7 +152,7 @@ function loginClearFailures(mysqli $conn, string $username, string $ipHash): voi
         try {
             $stmt = $conn->prepare($sql);
             if ($stmt) {
-                $stmt->bind_param($types, ...$values);
+                loginBindParams($stmt, $types, $values);
                 $stmt->execute();
                 $stmt->close();
             }
