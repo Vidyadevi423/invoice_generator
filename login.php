@@ -162,13 +162,18 @@ function loginClearFailures(mysqli $conn, string $username, string $ipHash): voi
     }
 }
 
-$conn = getDB();
 try {
+    $conn = getDB();
     $countResult = $conn->query("SELECT COUNT(*) AS total FROM admin_users");
+    if (!$countResult) {
+        throw new RuntimeException('Admin count query returned no result.');
+    }
     $count = (int) $countResult->fetch_assoc()['total'];
 } catch (Throwable $e) {
-    error_log('Admin count query failed: ' . $e->getMessage());
-    $conn->close();
+    error_log('Admin login database initialization failed: ' . $e->getMessage());
+    if (isset($conn) && $conn instanceof mysqli) {
+        $conn->close();
+    }
     http_response_code(500);
     exit('Unable to load the login page right now.');
 }
