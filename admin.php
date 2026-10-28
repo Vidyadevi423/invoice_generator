@@ -67,9 +67,10 @@ $filterSt = $_GET['status'] ?? 'all';
 if (!in_array($filterSt, ['all','paid','unpaid','draft','cancelled'], true)) {
     $filterSt = 'all';
 }
-$page = max(1, intval($_GET['page'] ?? 1));
+$requestedPage = filter_var($_GET['page'] ?? 1, FILTER_VALIDATE_INT);
+$page = ($requestedPage !== false && $requestedPage > 0) ? $requestedPage : 1;
 $perPage = 10;
-$offset = ($page - 1) * $perPage;
+$offset = 0;
 
 $where = "WHERE 1=1";
 $params = [];
@@ -105,9 +106,13 @@ if (!$countStmt->execute()) {
     http_response_code(500);
     exit('Unable to load invoices right now.');
 }
-$totalRows = $countStmt->get_result()->fetch_assoc()['cnt'];
-$totalPages = ceil($totalRows / $perPage);
+$totalRows = (int) $countStmt->get_result()->fetch_assoc()['cnt'];
+$totalPages = max(1, (int) ceil($totalRows / $perPage));
 $countStmt->close();
+
+// Clamp requested pagination to the available range before building SQL.
+$page = min($page, $totalPages);
+$offset = ($page - 1) * $perPage;
 
 $sql = "SELECT * FROM invoices $where ORDER BY created_at DESC LIMIT $perPage OFFSET $offset";
 $stmt = $conn->prepare($sql);
