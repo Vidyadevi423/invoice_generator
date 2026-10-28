@@ -1,6 +1,8 @@
 <?php
+session_start();
 require_once 'db.php';
 
+// Redirect if already logged in
 if (!empty($_SESSION['admin_user_id'])) {
     header('Location: admin.php');
     exit;
@@ -16,7 +18,10 @@ if (!$countResult) {
 }
 $count = (int) $countResult->fetch_assoc()['total'];
 $error = '';
-$setupTokenConfigured = getenv('ADMIN_SETUP_TOKEN') !== false && getenv('ADMIN_SETUP_TOKEN') !== '';
+
+// --- Setup token retrieval ---
+$tokenFromEnv = ADMIN_SETUP_TOKEN;
+$setupTokenConfigured = true;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
@@ -24,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($count === 0 && ($_POST['action'] ?? '') === 'setup') {
         $setupToken = $_POST['setup_token'] ?? '';
 
-        if (!$setupTokenConfigured || !hash_equals((string) getenv('ADMIN_SETUP_TOKEN'), (string) $setupToken)) {
+        if (!$setupTokenConfigured || !hash_equals((string) $tokenFromEnv, (string) $setupToken)) {
             $error = 'Administrator setup is not enabled or the setup token is invalid.';
         } else {
             $username = trim($_POST['username'] ?? '');
@@ -45,227 +50,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = 'Unable to create the administrator account.';
                 } else {
                     $stmt->bind_param('sss', $username, $hash, $email);
-                }
-                if ($stmt && $stmt->execute()) {
-                    session_regenerate_id(true);
-                    $_SESSION['admin_user_id'] = $conn->insert_id;
-                    $_SESSION['admin_username'] = $username;
-                    header('Location: admin.php');
-                    exit;
-                }
-                $error = 'Unable to create the administrator account.';
-                if ($stmt) {
+                    if ($stmt->execute()) {
+                        session_regenerate_id(true);
+                        $_SESSION['admin_user_id'] = $conn->insert_id;
+                        $_SESSION['admin_username'] = $username;
+                        header('Location: admin.php');
+                        exit;
+                    }
+                    $error = 'Unable to create the administrator account.';
                     $stmt->close();
                 }
             }
         }
-    } elseif ($count > 0 && ($_POST['action'] ?? '') === 'login') {
-        $username = trim($_POST['username'] ?? '');
-        $password = $_POST['password'] ?? '';
+   } elseif ($count > 0 && ($_POST['action'] ?? '') === 'login') {
+    $username = trim($_POST['username'] ?? '');
+    $password = $_POST['password'] ?? '';
 
-        $ipHash = hash('sha256', $_SERVER['REMOTE_ADDR'] ?? 'unknown');
-        $ipBlocked = false;
-        $ipStmt = $conn->prepare(
-            "SELECT attempts, window_started_at, blocked_until
-             FROM admin_login_ip_attempts
-             WHERE ip_hash = ?
-             LIMIT 1"
-        );
-        if ($ipStmt) {
-            $ipStmt->bind_param('s', $ipHash);
-            if ($ipStmt->execute()) {
-                $ipAttempt = $ipStmt->get_result()->fetch_assoc();
-                if ($ipAttempt && $ipAttempt['blocked_until'] !== null && strtotime($ipAttempt['blocked_until']) > time()) {
-                    $ipBlocked = true;
-                }
+    if ($username === '' || $password === '') {
+        $error = 'Username and password are required.';
+    } else {
+        $stmt = $conn->prepare("SELECT id, username, password FROM admin_users WHERE username = ?");
+        if ($stmt) {
+            $stmt->bind_param('s', $username);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $user = $result->fetch_assoc();
+            $stmt->close();
+
+            if ($user && password_verify($password, $user['password'])) {
+                session_regenerate_id(true);
+                $_SESSION['admin_user_id'] = $user['id'];
+                $_SESSION['admin_username'] = $user['username'];
+                header('Location: admin.php');
+                exit;
             } else {
-                error_log('Login IP throttle query failed: ' . $ipStmt->error);
-            }
-            $ipStmt->close();
-        } else {
-            error_log('Login IP throttle query preparation failed: ' . $conn->error);
-        }
-
-        $attemptStmt = $conn->prepare(
-            "SELECT attempts, window_started_at, blocked_until
-             FROM admin_login_attempts
-             WHERE username = ? AND ip_hash = ?
-             LIMIT 1"
-        );
-
-        $blocked = false;
-        if ($attemptStmt) {
-            $attemptStmt->bind_param('ss', $username, $ipHash);
-            if ($attemptStmt->execute()) {
-                $attempt = $attemptStmt->get_result()->fetch_assoc();
-                if ($attempt && $attempt['blocked_until'] !== null && strtotime($attempt['blocked_until']) > time()) {
-                    $blocked = true;
-                }
-            } else {
-                error_log('Login throttle query failed: ' . $attemptStmt->error);
-            }
-            $attemptStmt->close();
-        } else {
-            error_log('Login throttle query preparation failed: ' . $conn->error);
-        }
-
-        if ($blocked || $ipBlocked) {
-            $error = 'Too many failed sign-in attempts. Please try again later.';
-        } else {
-            $user = null;
-            $stmt = $conn->prepare("SELECT id, username, password FROM admin_users WHERE username = ? LIMIT 1");
-            if (!$stmt) {
-                error_log('Admin login query preparation failed: ' . $conn->error);
-                $error = 'Unable to sign in right now. Please try again.';
-            } else {
-                $stmt->bind_param('s', $username);
-                if (!$stmt->execute()) {
-                    error_log('Admin login query failed: ' . $stmt->error);
-                    $error = 'Unable to sign in right now. Please try again.';
-                } else {
-                    $user = $stmt->get_result()->fetch_assoc();
-                }
-                $stmt->close();
-            }
-
-            if ($error === '') {
-                if (password_verify($password, $user['password'] ?? '$2y$12$wmilnbsPv4gbNrEBbMsY8OyRFjjrd5qUo4cplNMoH/vjLpidmVsw6')) {
-                    $clearStmt = $conn->prepare("DELETE FROM admin_login_attempts WHERE username = ? AND ip_hash = ?");
-                    if ($clearStmt) {
-                        $clearStmt->bind_param('ss', $username, $ipHash);
-                        $clearStmt->execute();
-                        $clearStmt->close();
-                    }
-
-                    $clearIpStmt = $conn->prepare("DELETE FROM admin_login_ip_attempts WHERE ip_hash = ?");
-                    if ($clearIpStmt) {
-                        $clearIpStmt->bind_param('s', $ipHash);
-                        $clearIpStmt->execute();
-                        $clearIpStmt->close();
-                    }
-
-                    session_regenerate_id(true);
-                    $_SESSION['admin_user_id'] = (int) $user['id'];
-                    $_SESSION['admin_username'] = $user['username'];
-                    header('Location: admin.php');
-                    exit;
-                }
-
-                $recordStmt = $conn->prepare(
-                    "SELECT attempts, window_started_at
-                     FROM admin_login_attempts
-                     WHERE username = ? AND ip_hash = ?
-                     LIMIT 1"
-                );
-                $attempts = 0;
-                $windowStarted = null;
-                $recordExists = false;
-
-                if ($recordStmt) {
-                    $recordStmt->bind_param('ss', $username, $ipHash);
-                    if ($recordStmt->execute()) {
-                        $record = $recordStmt->get_result()->fetch_assoc();
-                        if ($record) {
-                            $recordExists = true;
-                            if (strtotime($record['window_started_at']) >= strtotime('-' . LOGIN_RATE_WINDOW_MINUTES . ' minutes')) {
-                                $attempts = (int) $record['attempts'];
-                                $windowStarted = $record['window_started_at'];
-                            }
-                        }
-                    }
-                    $recordStmt->close();
-                }
-
-                $attempts++;
-                $blockedUntil = $attempts >= LOGIN_RATE_LIMIT ? date('Y-m-d H:i:s', time() + (LOGIN_BLOCK_MINUTES * 60)) : null;
-
-                if (!$recordExists) {
-                    $upsertStmt = $conn->prepare(
-                        "INSERT INTO admin_login_attempts (username, ip_hash, attempts, window_started_at, blocked_until)
-                         VALUES (?, ?, ?, NOW(), ?)"
-                    );
-                    if ($upsertStmt) {
-                        $upsertStmt->bind_param('ssis', $username, $ipHash, $attempts, $blockedUntil);
-                    }
-                } else {
-                    $upsertStmt = $conn->prepare(
-                        "UPDATE admin_login_attempts
-                         SET attempts = ?, blocked_until = ?
-                         WHERE username = ? AND ip_hash = ?"
-                    );
-                    if ($upsertStmt) {
-                        $upsertStmt->bind_param('isss', $attempts, $blockedUntil, $username, $ipHash);
-                    }
-                }
-
-                if (isset($upsertStmt) && $upsertStmt) {
-                    if (!$upsertStmt->execute()) {
-                        error_log('Login throttle update failed: ' . $upsertStmt->error);
-                    }
-                    $upsertStmt->close();
-                }
-
                 $error = 'Invalid username or password.';
-
-                $ipRecordStmt = $conn->prepare(
-                    "SELECT attempts, window_started_at
-                     FROM admin_login_ip_attempts
-                     WHERE ip_hash = ?
-                     LIMIT 1"
-                );
-                $ipAttempts = 0;
-                $ipRecordExists = false;
-                if ($ipRecordStmt) {
-                    $ipRecordStmt->bind_param('s', $ipHash);
-                    if ($ipRecordStmt->execute()) {
-                        $ipRecord = $ipRecordStmt->get_result()->fetch_assoc();
-                        if ($ipRecord) {
-                            $ipRecordExists = true;
-                            if (strtotime($ipRecord['window_started_at']) >= strtotime('-' . LOGIN_RATE_WINDOW_MINUTES . ' minutes')) {
-                                $ipAttempts = (int) $ipRecord['attempts'];
-                            }
-                        }
-                    }
-                    $ipRecordStmt->close();
-                }
-
-                $ipAttempts++;
-                $ipBlockedUntil = $ipAttempts >= LOGIN_IP_RATE_LIMIT
-                    ? date('Y-m-d H:i:s', time() + (LOGIN_BLOCK_MINUTES * 60))
-                    : null;
-
-                if (!$ipRecordExists) {
-                    $ipUpsertStmt = $conn->prepare(
-                        "INSERT INTO admin_login_ip_attempts (ip_hash, attempts, window_started_at, blocked_until)
-                         VALUES (?, ?, NOW(), ?)"
-                    );
-                    if ($ipUpsertStmt) {
-                        $ipUpsertStmt->bind_param('sis', $ipHash, $ipAttempts, $ipBlockedUntil);
-                    }
-                } else {
-                    $ipUpsertStmt = $conn->prepare(
-                        "UPDATE admin_login_ip_attempts
-                         SET attempts = ?, blocked_until = ?
-                         WHERE ip_hash = ?"
-                    );
-                    if ($ipUpsertStmt) {
-                        $ipUpsertStmt->bind_param('iss', $ipAttempts, $ipBlockedUntil, $ipHash);
-                    }
-                }
-
-                if (isset($ipUpsertStmt) && $ipUpsertStmt) {
-                    if (!$ipUpsertStmt->execute()) {
-                        error_log('Login IP throttle update failed: ' . $ipUpsertStmt->error);
-                    }
-                    $ipUpsertStmt->close();
-                }
             }
+        } else {
+            $error = 'Unable to process login.';
         }
     }
+}
 }
 
 $conn->close();
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
