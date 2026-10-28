@@ -22,7 +22,13 @@ if (!is_array($data)) {
     apiError('Invalid JSON data received.');
 }
 
-$rateConn = getDB();
+try {
+    $rateConn = getDB();
+} catch (Throwable $e) {
+    error_log('Invoice rate limit database connection failed: ' . $e->getMessage());
+    apiError('Unable to save invoice right now. Please try again later.', 500);
+}
+
 $ipAddress = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
 $ipHash = hash('sha256', $ipAddress);
 $rateStmt = $rateConn->prepare(
